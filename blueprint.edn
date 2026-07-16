@@ -1,0 +1,12 @@
+[{:itonami.blueprint/id "cloud-itonami-isic-7722"
+  :itonami.blueprint/name "Renting of video tapes and disks"
+  :itonami.blueprint/isic-rev4 "7722"
+  :itonami.blueprint/domain :services/video-rental
+  :itonami.blueprint/license "AGPL-3.0-or-later"
+  :itonami.blueprint/social-impact [:content-access :consumer-protection :age-rating-compliance :fair-liability-handling]
+  :itonami.blueprint/governor :video-rental-governor
+  :itonami.blueprint/robotics false
+  :itonami.blueprint/required-technologies [:identity :forms :dmn :bpmn :audit-ledger]
+  :itonami.blueprint/status :public-oss
+  :itonami.blueprint/maturity :implemented
+  :db/id -1}]
