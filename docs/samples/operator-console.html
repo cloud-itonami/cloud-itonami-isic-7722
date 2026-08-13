@@ -2469,7 +2469,7 @@ img,svg { max-width: 100%; height: auto; }</style></head><body>
 <main>
   <section class="card">
     <h2>This build at a glance</h2>
-    <p class="muted">Counted from the run itself, so these numbers cannot disagree with the tables below.</p>
+    <p class="muted">Counted from the run itself (outcomes from <code>store/ledger</code>, which holds exactly one fact per request), so these numbers cannot disagree with the tables below.</p>
     <table>
       <thead><tr><th>Measure</th><th>Value</th></tr></thead>
       <tbody>
@@ -2490,9 +2490,9 @@ img,svg { max-width: 100%; height: auto; }</style></head><body>
     <table>
       <thead><tr><th>Account</th><th>Name</th><th>Registered</th><th>Verified</th><th>This run</th></tr></thead>
       <tbody>
-        <tr><td><code>account-1</code></td><td>Kanda Video Rental -- Branch 1 (membership desk account)</td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="critical">HARD hold · op-not-allowed</span></td></tr>
-        <tr><td><code>account-2</code></td><td>Shibuya Branch -- Branch 2 (membership desk account)</td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="critical">HARD hold · effect-not-propose</span></td></tr>
-        <tr><td><code>account-3</code></td><td>Ikebukuro Branch -- pending ID/POS verification</td><td><span class="ok">yes</span></td><td><span class="critical">no</span></td><td><span class="critical">HARD hold · account-unverified</span></td></tr>
+        <tr><td><code>account-1</code></td><td>Kanda Video Rental -- Branch 1 (membership desk account)</td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="ok">3 committed</span> · <span class="critical">2 HARD held</span></td></tr>
+        <tr><td><code>account-2</code></td><td>Shibuya Branch -- Branch 2 (membership desk account)</td><td><span class="ok">yes</span></td><td><span class="ok">yes</span></td><td><span class="ok">2 committed</span> · <span class="critical">1 HARD held</span> · <span class="warn">1 rollout held</span></td></tr>
+        <tr><td><code>account-3</code></td><td>Ikebukuro Branch -- pending ID/POS verification</td><td><span class="ok">yes</span></td><td><span class="critical">no</span></td><td><span class="critical">1 HARD held</span></td></tr>
       </tbody>
     </table>
   </section>
@@ -2552,7 +2552,7 @@ img,svg { max-width: 100%; height: auto; }</style></head><body>
       <thead><tr><th>Op</th><th>Account</th><th>Payload</th><th>Approver</th></tr></thead>
       <tbody>
         <tr><td><code>:log-rental-record</code></td><td><code>account-1</code></td><td>condition=good, item-id=DVD-00042, movement=checkout</td><td><span class="ok">rental-desk-coordinator-1 (retained in record)</span></td></tr>
-        <tr><td><code>:log-rental-record</code></td><td><code>account-1</code></td><td>condition=good, item-id=DVD-00099, movement=return</td><td><span class="warn">rental-desk-coordinator-1 (audit trail only — not retained in record)</span></td></tr>
+        <tr><td><code>:log-rental-record</code></td><td><code>account-1</code></td><td>condition=good, item-id=DVD-00099, movement=return</td><td><span class="muted">auto-commit — no human approver</span></td></tr>
         <tr><td><code>:schedule-restocking-operation</code></td><td><code>account-2</code></td><td>quantity=25, title=New Release Batch W29</td><td><span class="muted">auto-commit — no human approver</span></td></tr>
         <tr><td><code>:coordinate-supply-order</code></td><td><code>account-2</code></td><td>sku=BD-2026-NEWREL, supplier=Kanda Media Distributors</td><td><span class="muted">auto-commit — no human approver</span></td></tr>
         <tr><td><code>:flag-customer-concern</code></td><td><code>account-1</code></td><td>concern=age-rating admission doubt raised at the desk, confidence=0.9</td><td><span class="ok">rental-desk-coordinator-1 (retained in record)</span></td></tr>

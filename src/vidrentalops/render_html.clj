@@ -83,6 +83,10 @@
      :phase        phase
      :disposition  (:disposition state)
      :audit        (vec (:audit state))
+     ;; the exact record this run handed to the :commit node (nil when
+     ;; held) -- kept so the rental log can be joined back to the run
+     ;; that produced it by identity, never by a lossy op+account match.
+     :record       (:record state)
      :approver     (when interrupted? approver)
      :interrupted? interrupted?}))
 
@@ -220,9 +224,27 @@
   "The full advisor/governor/approval audit trail this run produced,
   in scenario order. NOTE this is a superset of `store/ledger`: the
   actor only persists `:committed` and hold facts to the SSoT ledger,
-  so `:approval-requested` / `:approval-granted` exist ONLY here."
+  so `:approval-requested` / `:approval-granted` exist ONLY here.
+
+  ⚠ Do NOT count outcomes from this trail. An auto-commit emits its
+  `:committed` fact TWICE (once from the `:decide` node, once again
+  from the `:commit` node, and the `:audit` channel reducer is `into`),
+  so a naive count here over-reports commits. `store/ledger` holds
+  exactly one fact per outcome and is the canonical source for counts;
+  this trail is only for facts the SSoT never persists."
   [steps]
   (into [] (mapcat :audit) steps))
+
+(defn- record-index
+  "record -> the step that produced it. Joining the committed rental
+  log back to its run by record identity, rather than by (op,
+  account-id), matters: this scenario deliberately runs the SAME op on
+  the SAME account both as a phase-1 human-approved escalation and as
+  a phase-3 auto-commit, and a lossy join smears the human approver
+  from the first onto the second -- i.e. claims a human approved
+  something no human ever saw."
+  [steps]
+  (into {} (for [s steps :when (:record s)] [(:record s) s])))
 
 (defn- hard-hold? [fact]
   (and (= :governor-hold (:t fact)) (boolean (seq (:basis fact)))))
@@ -260,24 +282,23 @@
 (defn- approver-attribution
   "MEASURED, not assumed. Reads the approver back out of the committed
   record exactly as `store/commit-record!` retained it in THIS repo,
-  and falls back to the audit trail when the record dropped it, so the
-  page never renders a blank that would read as 'nobody approved'.
+  and, only when the record actually dropped it, falls back to the
+  approval fact from THAT record's own run -- so the page never
+  renders a blank (which would read as 'nobody approved') and never
+  borrows another run's approver.
 
   Returns [class text]. Re-derived on every render, so if the store is
   later changed to retain (or to drop) the approver, this disclosure
   follows without editing the renderer."
-  [trail {:keys [op account-id] :as record}]
+  [step record]
   (let [retained (or (get-in record [:payload :approved-by])
                      (get-in record [:value :approved-by]))
-        granted  (first (for [f trail
-                              :when (and (= :approval-granted (:t f))
-                                         (= op (:op f))
-                                         (= account-id (:account-id f)))]
-                          (:by f)))]
+        granted  (some #(when (= :approval-granted (:t %)) (:by %)) (:audit step))]
     (cond
-      retained [:ok (str retained " (retained in record)")]
-      granted  [:warn (str granted " (audit trail only — not retained in record)")]
-      :else    [:muted "auto-commit — no human approver"])))
+      retained    [:ok (str retained " (retained in record)")]
+      (nil? step) [:muted "unmatched record — provenance not derivable"]
+      granted     [:warn (str granted " (audit trail only — not retained in record)")]
+      :else       [:muted "auto-commit — no human approver"])))
 
 ;; ----------------------------- html -----------------------------
 
@@ -322,17 +343,23 @@
 
 ;; --- section 1: accounts ---
 
-(defn- account-status [trail {:keys [account-id]}]
-  (let [mine (filter #(= account-id (:account-id %)) trail)
-        held (filter hard-hold? mine)]
-    (cond
-      (seq held) (span :critical (str "HARD hold · "
-                                      (esc (str/join ", " (map kw-name (:basis (last held)))))))
-      (seq (filter #(= :committed (:t %)) mine)) (span :ok "activity committed")
-      (seq mine) (span :warn "activity held / awaiting approval")
-      :else (span :muted "no activity in this run"))))
+(defn- account-status
+  "Counted from `store/ledger` (exactly one fact per outcome), never
+  from the audit trail (which emits `:committed` twice per auto-commit)."
+  [ledger {:keys [account-id]}]
+  (let [mine (filter #(= account-id (:account-id %)) ledger)
+        committed (count (filter #(= :committed (:t %)) mine))
+        hard (count (filter hard-hold? mine))
+        soft (count (filter phase-hold? mine))
+        parts (cond-> []
+                (pos? committed) (conj (span :ok (str committed " committed")))
+                (pos? hard) (conj (span :critical (str hard " HARD held")))
+                (pos? soft) (conj (span :warn (str soft " rollout held"))))]
+    (if (seq parts)
+      (str/join " · " parts)
+      (span :muted "no activity in this run"))))
 
-(defn- accounts-section [db trail]
+(defn- accounts-section [db ledger]
   (section
    "Rental accounts (SSoT directory)"
    (str "Read straight out of <code>vidrentalops.store/all-accounts</code> on the seeded store. "
@@ -346,7 +373,7 @@
                 (esc name)
                 (if registered? (span :ok "yes") (span :critical "no"))
                 (if verified? (span :ok "yes") (span :critical "no"))
-                (account-status trail a))))))
+                (account-status ledger a))))))
 
 ;; --- section 2: action gate ---
 
@@ -413,8 +440,8 @@
 
 ;; --- section 4: hard holds ---
 
-(defn- holds-section [trail]
-  (let [holds (filter #(= :governor-hold (:t %)) trail)]
+(defn- holds-section [ledger]
+  (let [holds (filter #(= :governor-hold (:t %)) ledger)]
     (section
      "Governor holds (why the actor refused)"
      (str "Every hold this run produced, with the governor's own rule keyword and its own "
@@ -440,7 +467,7 @@
 
 ;; --- section 5: committed rental log ---
 
-(defn- rental-log-section [db trail]
+(defn- rental-log-section [db steps]
   (section
    "Committed rental log (SSoT mutations)"
    (str "The append-only committed-proposal history from "
@@ -450,12 +477,13 @@
         "labels its own provenance.")
    (table nil
           ["Op" "Account" "Payload" "Approver"]
-          (for [{:keys [op account-id payload value] :as r} (store/rental-log db)]
-            (let [[class text] (approver-attribution trail r)]
-              (td (code op)
-                  (code account-id)
-                  (esc (kv (or payload value {}) [:account-id :approved-by]))
-                  (span class (esc text))))))))
+          (let [by-record (record-index steps)]
+            (for [{:keys [op account-id payload value] :as r} (store/rental-log db)]
+              (let [[class text] (approver-attribution (get by-record r) r)]
+                (td (code op)
+                    (code account-id)
+                    (esc (kv (or payload value {}) [:account-id :approved-by]))
+                    (span class (esc text)))))))))
 
 ;; --- section 6: audit ledger ---
 
@@ -478,13 +506,14 @@
 
 ;; --- summary ---
 
-(defn- summary-section [db steps trail]
-  (let [holds (filter #(= :governor-hold (:t %)) trail)
+(defn- summary-section [db steps ledger]
+  (let [holds (filter #(= :governor-hold (:t %)) ledger)
         hard  (filter hard-hold? holds)
         rules (sort (distinct (map kw-name (mapcat :basis hard))))]
     (section
      "This build at a glance"
-     "Counted from the run itself, so these numbers cannot disagree with the tables below."
+     (str "Counted from the run itself (outcomes from <code>store/ledger</code>, which holds "
+          "exactly one fact per request), so these numbers cannot disagree with the tables below.")
      (table nil ["Measure" "Value"]
             [(td "Coordination requests executed" (esc (count steps)))
              (td "Auto-committed with no human"
@@ -508,7 +537,7 @@
   "Renders the whole operator console from a `run-demo!` result. Every
   cell is read out of the store or the run's audit trail."
   [{:keys [db steps]}]
-  (let [trail (audit-trail steps)]
+  (let [ledger (vec (store/ledger db))]
     (str
      "<!DOCTYPE html>\n"
      "<html lang=\"en\"><head><meta charset=\"utf-8\">"
@@ -521,12 +550,12 @@
      "  <span class=\"badge\">read-only sample · governor-gated · content-rating admission overrides and damage-liability determinations are permanently out of charter</span>\n"
      "</header>\n"
      "<main>\n"
-     (summary-section db steps trail)
-     (accounts-section db trail)
+     (summary-section db steps ledger)
+     (accounts-section db ledger)
      (action-gate-section)
      (scenario-section steps)
-     (holds-section trail)
-     (rental-log-section db trail)
+     (holds-section ledger)
+     (rental-log-section db steps)
      (ledger-section db)
      "</main>\n"
      "<footer>\n"
@@ -539,14 +568,14 @@
   independent governor can and does REFUSE. If a refactor ever makes
   the governor silently stop holding, fail the build loudly rather
   than publish a console that quietly claims everything was fine."
-  [trail]
-  (let [holds (filterv #(= :governor-hold (:t %)) trail)
+  [ledger]
+  (let [holds (filterv #(= :governor-hold (:t %)) ledger)
         hard  (filterv hard-hold? holds)]
     (when (empty? holds)
       (throw (ex-info (str "render-html invariant violated: the scenario produced 0 "
                            ":governor-hold records. The operator console must demonstrate "
                            "that the governor actually refuses proposals.")
-                      {:governor-holds 0 :audit-facts (count trail)})))
+                      {:governor-holds 0 :ledger-facts (count ledger)})))
     (when (empty? hard)
       (throw (ex-info (str "render-html invariant violated: the scenario produced "
                            (count holds) " :governor-hold record(s) but 0 HARD holds "
@@ -560,13 +589,14 @@
 (defn -main [& args]
   (let [out    (or (first args) "docs/samples/operator-console.html")
         result (run-demo!)
-        trail  (audit-trail (:steps result))
-        {:keys [holds hard rules]} (assert-governed! trail)
+        ledger (vec (store/ledger (:db result)))
+        {:keys [holds hard rules]} (assert-governed! ledger)
         html   (render result)]
     (spit out html)
     (println "wrote" out
              (str "(" (count html) " bytes, "
                   (count (:steps result)) " requests, "
-                  (count (store/ledger (:db result))) " ledger facts, "
+                  (count ledger) " ledger facts, "
+                  (count (audit-trail (:steps result))) " audit facts, "
                   (count (store/rental-log (:db result))) " committed records, "
                   holds " governor holds of which " hard " HARD [" (str/join ", " rules) "])"))))
