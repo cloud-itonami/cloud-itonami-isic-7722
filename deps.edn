@@ -1,6 +1,14 @@
 {:paths ["src"]
  :deps {io.github.kotoba-lang/langgraph
-        {:git/sha "a332a770a0d2b5193f81b54483bb954fb29ef8d7"}}
+        {:git/sha "a332a770a0d2b5193f81b54483bb954fb29ef8d7"}
+        ;; jp-go-dds -- this workspace's BASE design system (デジタル庁
+        ;; デザインシステム). Build-time only: `vidrentalops.render-html`
+        ;; inlines `jp-go-dds.skin/dds+skin` into the generated console's
+        ;; <style>, so the emitted HTML is a standalone artifact with no
+        ;; runtime dependency on this coordinate.
+        io.github.kotoba-lang/jp-go-digital-design-system
+        {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system"
+         :git/sha "83db99546eabc53613ae826ea41d1533a3c574af"}}
  :aliases
  {:dev {:override-deps
         {io.github.kotoba-lang/langgraph
@@ -8,6 +16,11 @@
          io.github.kotoba-lang/langchain
          {:local/root "../../kotoba-lang/langchain"}}}
   :run {:main-opts ["-m" "vidrentalops.sim"]}
+  ;; clojure -M:dev:render-html [out-file]
+  ;;   -> regenerate docs/samples/operator-console.html by actually
+  ;;      executing the actor stack (operation -> governor -> store).
+  ;;      Fails the build if the run produced zero governor holds.
+  :render-html {:main-opts ["-m" "vidrentalops.render-html"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
                       {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
