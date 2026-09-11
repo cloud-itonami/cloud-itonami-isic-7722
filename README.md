@@ -46,11 +46,11 @@ clojure -M:run
 
 ## Test suite
 
-- `test/vidrentalops/governor_test.clj` — unit tests of governor hard checks, scope exclusion, and the self-trip regression test
-- `test/vidrentalops/advisor_test.clj` — advisor proposal shape and consistency
-- `test/vidrentalops/phase_test.clj` — rollout phase logic
-- `test/vidrentalops/governor_contract_test.clj` — full graph integration, audit trail
-- `test/vidrentalops/store_contract_test.clj` — Store protocol and MemStore implementation
+- `test/vidrentalops/governor_test.cljk` — unit tests of governor hard checks, scope exclusion, and the self-trip regression test
+- `test/vidrentalops/advisor_test.cljk` — advisor proposal shape and consistency
+- `test/vidrentalops/phase_test.cljk` — rollout phase logic
+- `test/vidrentalops/governor_contract_test.cljk` — full graph integration, audit trail
+- `test/vidrentalops/store_contract_test.cljk` — Store protocol and MemStore implementation
 
 ## Modules
 
