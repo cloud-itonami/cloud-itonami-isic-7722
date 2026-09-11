@@ -21,7 +21,7 @@
          io.github.kotoba-lang/langchain
          {:local/root "../../kotoba-lang/langchain"}}}
   :run {:main-opts ["-m" "vidrentalops.sim"]}
-  ;; clojure -M:dev:render-html [out-file]
+  ;; kbb -M:dev:render-html [out-file]
   ;;   -> regenerate docs/samples/operator-console.html by actually
   ;;      executing the actor stack (operation -> governor -> store).
   ;;      Fails the build if the run produced zero governor holds.
