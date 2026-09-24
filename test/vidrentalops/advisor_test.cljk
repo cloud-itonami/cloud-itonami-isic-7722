@@ -1,6 +1,6 @@
 (ns vidrentalops.advisor-test
   "Unit tests of `vidrentalops.advisor` proposal generation."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [vidrentalops.advisor :as adv]
             [vidrentalops.store :as store]))
 

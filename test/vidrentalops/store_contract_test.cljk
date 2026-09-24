@@ -1,6 +1,6 @@
 (ns vidrentalops.store-contract-test
   "Contract tests for `vidrentalops.store/Store` protocol."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [vidrentalops.store :as store]))
 
 (deftest mem-store-account-lookup
