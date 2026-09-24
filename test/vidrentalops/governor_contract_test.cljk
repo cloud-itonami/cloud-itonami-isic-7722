@@ -1,7 +1,7 @@
 (ns vidrentalops.governor-contract-test
   "Integration tests: full OperationActor graph exercising the governor's
   hard checks, escalation logic, and audit trail."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [langgraph.graph :as g]
             [vidrentalops.advisor :as advisor]
             [vidrentalops.operation :as op]

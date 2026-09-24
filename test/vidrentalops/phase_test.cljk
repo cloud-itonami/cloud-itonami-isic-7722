@@ -1,6 +1,6 @@
 (ns vidrentalops.phase-test
   "Unit tests of `vidrentalops.phase` rollout logic."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [vidrentalops.phase :as phase]))
 
 (def clean-verdict {:hard? false :escalate? false})
